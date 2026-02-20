@@ -17,6 +17,24 @@ account expenses:clothing
 account expenses:gifts
 account equity:opening-balances
 
+; === Budget Goals ===
+; Periodic transactions define monthly budget targets
+
+~ monthly from 2025-09-01
+    expenses:housing:rent      £1,800.00
+    expenses:food:groceries      £500.00
+    expenses:food:dining         £200.00
+    expenses:transport           £200.00
+    expenses:utilities           £150.00
+    expenses:entertainment       £100.00
+    expenses:subscriptions        £70.00
+    expenses:health               £75.00
+    expenses:clothing            £100.00
+    expenses:gifts                £50.00
+    income:salary              £-5,000.00
+    income:freelance             £-500.00
+    assets:bank:checking
+
 ; === Opening Balances ===
 
 2025-09-01 Opening balances

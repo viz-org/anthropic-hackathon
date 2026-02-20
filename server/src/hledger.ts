@@ -295,3 +295,98 @@ export function getDataInfo(): DataInfo {
 
   return { categories, dateRange: { start, end }, suggestedPeriods };
 }
+
+// --- Budget Comparison ---
+
+export interface BudgetPeriod {
+  date: string;
+  actual: number;
+  budget: number;
+  percentage: number;
+}
+
+export interface BudgetCategory {
+  name: string;
+  periods: BudgetPeriod[];
+  totalActual: number;
+  totalBudget: number;
+  totalPercentage: number;
+}
+
+export interface BudgetComparisonResult {
+  categories: BudgetCategory[];
+  period: string;
+  totals: BudgetPeriod[];
+}
+
+function extractBudgetCell(cell: unknown[][]): { actual: number; budget: number } {
+  const actual = cell[0] && (cell[0] as unknown[]).length > 0
+    ? Math.abs(extractAmount(cell[0] as unknown[]))
+    : 0;
+  const budget = cell[1] && (cell[1] as unknown[]).length > 0
+    ? Math.abs(extractAmount(cell[1] as unknown[]))
+    : 0;
+  return { actual, budget };
+}
+
+export function getBudgetComparison(
+  period: string,
+  depth?: number,
+): BudgetComparisonResult {
+  const depthArg = depth ? `--depth ${depth}` : "--depth 2";
+  const result = hledgerJson(
+    `bal expenses --budget ${depthArg} -p "${period}" -M`,
+  ) as {
+    prDates: { tag: string; contents: string | number }[][];
+    prRows: {
+      prrName: string;
+      prrAmounts: unknown[][][];
+      prrTotal: unknown[][];
+      prrAverage: unknown[][];
+    }[];
+    prTotals: {
+      prrName: unknown;
+      prrAmounts: unknown[][][];
+      prrTotal: unknown[][];
+      prrAverage: unknown[][];
+    };
+  };
+
+  const dates = result.prDates.map(
+    (pair) => dateToYearMonth(pair[0].contents),
+  );
+
+  const categories: BudgetCategory[] = result.prRows.map((row) => {
+    const periods = row.prrAmounts.map((cell, i) => {
+      const { actual, budget } = extractBudgetCell(cell);
+      return {
+        date: dates[i],
+        actual,
+        budget,
+        percentage: budget > 0 ? Math.round((actual / budget) * 100) : 0,
+      };
+    });
+
+    const { actual: totalActual, budget: totalBudget } = extractBudgetCell(row.prrTotal);
+
+    return {
+      name: row.prrName.replace(/^expenses:/, ""),
+      periods,
+      totalActual,
+      totalBudget,
+      totalPercentage: totalBudget > 0 ? Math.round((totalActual / totalBudget) * 100) : 0,
+    };
+  });
+
+  const totals = result.prTotals.prrAmounts.map((cell, i) => {
+    const { actual, budget } = extractBudgetCell(cell);
+    return {
+      date: dates[i],
+      actual,
+      budget,
+      percentage: budget > 0 ? Math.round((actual / budget) * 100) : 0,
+    };
+  });
+
+  return { categories, period, totals };
+}

@@ -4,6 +4,7 @@ import {
   getSpendingBreakdown,
   getFinancialTrends,
   getFinancialSummary,
+  getBudgetComparison,
   getDataInfo,
 } from "./hledger.js";
 
@@ -187,6 +188,69 @@ const server = new McpServer(
             {
               type: "text" as const,
               text: `Error getting financial summary: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  )
+  .registerWidget(
+    "budget-comparison",
+    {
+      description:
+        "Grouped bar chart comparing actual spending vs budget targets per category",
+    },
+    {
+      description:
+        "Compare actual spending against budget targets. Use when the user asks about budget performance, overspending, whether they're on track, or how actual compares to planned. Examples: 'Am I on budget?', 'Where am I overspending?', 'How does my spending compare to my budget?'",
+      inputSchema: {
+        period: z
+          .string()
+          .describe(
+            'Time period range, e.g. "2025-09..2026-03", "last 3 months", "this quarter"',
+          ),
+        depth: z
+          .number()
+          .optional()
+          .default(2)
+          .describe(
+            "Account depth for grouping (2 = top-level categories like food, housing)",
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+        destructiveHint: false,
+      },
+    },
+    async ({ period, depth }) => {
+      try {
+        const result = getBudgetComparison(period, depth);
+        const overBudget = result.categories
+          .filter((c) => c.totalPercentage > 100)
+          .map((c) => `${c.name} (${c.totalPercentage}%)`)
+          .join(", ");
+        const underBudget = result.categories
+          .filter((c) => c.totalPercentage <= 100 && c.totalPercentage > 0)
+          .map((c) => `${c.name} (${c.totalPercentage}%)`)
+          .join(", ");
+        return {
+          structuredContent: result,
+          content: [
+            {
+              type: "text" as const,
+              text: `Budget comparison for ${period}. Over budget: ${overBudget || "none"}. Within budget: ${underBudget || "none"}.`,
+            },
+          ],
+          isError: false,
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error getting budget comparison: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
           isError: true,
