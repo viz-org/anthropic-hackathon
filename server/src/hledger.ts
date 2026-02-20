@@ -25,7 +25,7 @@ const HLEDGER_BIN = getHledgerPath();
 export function hledger(args: string): string {
   try {
     return execSync(`${HLEDGER_BIN} -f "${JOURNAL_PATH}" ${args}`, {
-      timeout: 5000,
+      timeout: 30000,
       encoding: "utf-8",
     });
   } catch (error) {
