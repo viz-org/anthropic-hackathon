@@ -99,7 +99,7 @@ const server = new McpServer(
         period: z
           .string()
           .describe(
-            'Time period range, e.g. "last 6 months", "2025-09..2026-03", "this year"',
+            'Time period range, e.g. "2025-09..2026-03", "this year", "this quarter". Always use get-data-info for valid periods.',
           ),
         interval: z
           .enum(["monthly", "weekly", "quarterly"])
@@ -160,7 +160,7 @@ const server = new McpServer(
           .string()
           .optional()
           .describe(
-            'Optional time period to scope the summary, e.g. "this month", "last quarter". Omit for all-time.',
+            'Optional time period to scope the summary, e.g. "2026-02", "this quarter", "2025-09..2026-03". Omit for all-time. Use get-data-info for valid periods.',
           ),
       },
       annotations: {
@@ -209,7 +209,7 @@ const server = new McpServer(
         period: z
           .string()
           .describe(
-            'Time period range, e.g. "2025-09..2026-03", "last 3 months", "this quarter"',
+            'Time period range, e.g. "2025-09..2026-03", "this quarter", "2025q4". Always use get-data-info for valid periods.',
           ),
         depth: z
           .number()
