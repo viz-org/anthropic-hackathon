@@ -22,12 +22,12 @@ const server = new McpServer(
     },
     {
       description:
-        "Show where money is being spent. Use when the user asks about spending breakdown, top expenses, category spending, or where their money goes. Examples: 'Where is my money going?', 'Top expenses this month?', 'How much on food?'",
+        "Show monthly spending breakdown as a stacked bar chart. Each month gets its own stacked bar showing expense categories. Always use a multi-month period range so the chart shows month-over-month comparison. Examples: 'Where is my money going?', 'Top expenses?', 'How much on food?'",
       inputSchema: {
         period: z
           .string()
           .describe(
-            'Time period for the report, e.g. "this month", "last 3 months", "2025-10", "2025-09..2026-03"',
+            'Time period range — MUST span multiple months for the chart to be useful. Use date ranges like "2025-09..2026-03" or "this year" or "this quarter". Avoid single months.',
           ),
         depth: z
           .number()
@@ -52,7 +52,7 @@ const server = new McpServer(
     async ({ period, depth, category }) => {
       try {
         const result = getSpendingBreakdown(period, depth, category);
-        const topItems = result.categories
+        const topItems = result.categoryTotals
           .slice(0, 5)
           .map((c) => `${c.name} £${c.amount.toLocaleString()} (${c.percentage}%)`)
           .join(", ");
@@ -61,7 +61,7 @@ const server = new McpServer(
           content: [
             {
               type: "text" as const,
-              text: `Spending breakdown for ${period}: Total £${result.total.toLocaleString()}. Top categories: ${topItems}.`,
+              text: `Monthly spending breakdown for ${period} (${result.months.length} months): Grand total £${result.grandTotal.toLocaleString()}. Top categories: ${topItems}.`,
             },
           ],
           isError: false,

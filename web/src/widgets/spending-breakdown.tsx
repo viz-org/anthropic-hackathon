@@ -33,34 +33,43 @@ function SpendingBreakdown() {
     );
   }
 
-  const { categories, total, period } = output;
+  const { months, categoryTotals, grandTotal, period } = output;
 
-  const data = {
-    labels: [""],
-    datasets: categories.map((cat, i) => ({
-      label: `${cat.name} (${cat.percentage}%)`,
-      data: [cat.amount],
-      backgroundColor: COLORS[i % COLORS.length],
-      borderRadius: 2,
-    })),
-  };
+  // Use category totals (sorted by amount) to determine which categories to show
+  const topCategories = categoryTotals.slice(0, 8).map((c) => c.name);
+
+  // Month labels for x-axis
+  const labels = months.map((m) => m.date);
+
+  // One dataset per category, with values per month
+  const datasets = topCategories.map((catName, i) => ({
+    label: catName,
+    data: months.map((m) => {
+      const found = m.categories.find((c) => c.name === catName);
+      return found ? found.amount : 0;
+    }),
+    backgroundColor: COLORS[i % COLORS.length],
+    borderRadius: 3,
+  }));
+
+  const data = { labels, datasets };
 
   const options = {
-    indexAxis: "y" as const,
     responsive: true,
     maintainAspectRatio: false,
     scales: {
       x: {
         stacked: true,
         grid: { display: false },
+        ticks: { font: { size: 11 } },
+      },
+      y: {
+        stacked: true,
+        grid: { color: "rgba(0,0,0,0.06)" },
         ticks: {
           callback: (value: string | number) => `£${Number(value).toLocaleString()}`,
           font: { size: 11 },
         },
-      },
-      y: {
-        stacked: true,
-        display: false,
       },
     },
     plugins: {
@@ -81,16 +90,21 @@ function SpendingBreakdown() {
     },
   };
 
+  const summaryText = categoryTotals
+    .slice(0, 5)
+    .map((c) => `${c.name} £${c.amount.toLocaleString()} (${c.percentage}%)`)
+    .join(", ");
+
   return (
     <div
       className="container"
-      data-llm={`Spending breakdown for ${period}: total £${total.toLocaleString()}. ${categories.map((c) => `${c.name} £${c.amount.toLocaleString()} (${c.percentage}%)`).join(", ")}`}
+      data-llm={`Monthly spending breakdown for ${period}: grand total £${grandTotal.toLocaleString()} across ${months.length} months. Top categories: ${summaryText}`}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.5rem" }}>
         <span className="section-title">Spending Breakdown</span>
-        <span className="period-label">{period} — £{total.toLocaleString()} total</span>
+        <span className="period-label">{period} — £{grandTotal.toLocaleString()} total</span>
       </div>
-      <div className="chart-container" style={{ minHeight: 120 }}>
+      <div className="chart-container" style={{ minHeight: 250 }}>
         <Bar data={data} options={options} />
       </div>
     </div>

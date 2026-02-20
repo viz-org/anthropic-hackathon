@@ -50,9 +50,16 @@ export interface CategoryBreakdown {
   percentage: number;
 }
 
-export interface SpendingBreakdownResult {
-  categories: CategoryBreakdown[];
+export interface MonthlySpending {
+  date: string;
+  categories: { name: string; amount: number }[];
   total: number;
+}
+
+export interface SpendingBreakdownResult {
+  months: MonthlySpending[];
+  categoryTotals: CategoryBreakdown[];
+  grandTotal: number;
   period: string;
 }
 
@@ -87,30 +94,65 @@ export function getSpendingBreakdown(
   const account = category
     ? `"expenses:${category}"`
     : "expenses";
-  const result = hledgerJson(
-    `bal ${account} ${depthArg} -p "${period}" -S`,
-  ) as [unknown[], unknown[]];
 
-  const [rows, totals] = result;
-  const total = Math.abs(
-    extractAmount(totals as unknown[]),
+  // Monthly periodic balance report
+  const result = hledgerJson(
+    `bal ${account} ${depthArg} -p "${period}" -M -S`,
+  ) as {
+    prDates: { tag: string; contents: string | number }[][];
+    prRows: {
+      prrName: string;
+      prrAmounts: unknown[][];
+      prrTotal: unknown[];
+      prrAverage: unknown[];
+    }[];
+    prTotals: {
+      prrAmounts: unknown[][];
+      prrTotal: unknown[];
+    };
+  };
+
+  const dates = result.prDates.map(
+    (pair) => dateToYearMonth(pair[0].contents),
   );
 
-  const categories: CategoryBreakdown[] = (
-    rows as [string, string, number, unknown[]][]
-  ).map(([fullName, , , amounts]) => {
-    const amount = Math.abs(extractAmount(amounts));
-    return {
-      name: fullName.replace(/^expenses:/, ""),
-      amount,
-      percentage:
-        total > 0
-          ? Math.round((amount / total) * 10000) / 100
-          : 0,
-    };
+  // Build per-month data
+  const months: MonthlySpending[] = dates.map((date, i) => {
+    const categories: { name: string; amount: number }[] = [];
+    let monthTotal = 0;
+    for (const row of result.prRows) {
+      const amount = Math.abs(extractAmount(row.prrAmounts[i] ?? []));
+      if (amount > 0) {
+        categories.push({
+          name: row.prrName.replace(/^expenses:/, ""),
+          amount,
+        });
+        monthTotal += amount;
+      }
+    }
+    // Sort by amount descending within each month
+    categories.sort((a, b) => b.amount - a.amount);
+    return { date, categories, total: Math.round(monthTotal * 100) / 100 };
   });
 
-  return { categories, total, period };
+  // Category totals across all months (from prrTotal)
+  const grandTotal = Math.abs(extractAmount(result.prTotals.prrTotal));
+  const categoryTotals: CategoryBreakdown[] = result.prRows
+    .map((row) => {
+      const amount = Math.abs(extractAmount(row.prrTotal));
+      return {
+        name: row.prrName.replace(/^expenses:/, ""),
+        amount,
+        percentage:
+          grandTotal > 0
+            ? Math.round((amount / grandTotal) * 10000) / 100
+            : 0,
+      };
+    })
+    .filter((c) => c.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+
+  return { months, categoryTotals, grandTotal, period };
 }
 
 export function getFinancialTrends(

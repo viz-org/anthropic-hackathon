@@ -65,10 +65,10 @@ An MCP App that turns plain-text accounting data (hledger) into interactive fina
 
 | Aspect | Detail |
 |--------|--------|
-| **Input schema** | `period` (string, e.g. "this month"), `depth` (number, default 2), `accountFilter` (optional string) |
-| **hledger command** | `hledger bal expenses --depth {depth} -p "{period}" -O json -S` |
-| **Server returns** | `{ categories: [{ name, amount, percentage }], total, period }` |
-| **Widget renders** | Horizontal bar chart or doughnut chart with category labels and percentages |
+| **Input schema** | `period` (string, e.g. "last 6 months"), `depth` (number, default 2), `accountFilter` (optional string) |
+| **hledger command** | `hledger bal expenses --depth {depth} -p "{period}" -M -O json -S` |
+| **Server returns** | `{ months: [{ date, categories: [{ name, amount }] }], categoryTotals: [{ name, total, percentage }] }` |
+| **Widget renders** | Stacked or grouped bar chart with months on x-axis, expense categories as colored segments. Shows how spending per category changes month-over-month. |
 
 ### 3.2 `financial-trends`
 
