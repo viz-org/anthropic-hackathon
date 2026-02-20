@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { existsSync, appendFileSync, writeFileSync } from "fs";
+import { existsSync, appendFileSync, writeFileSync, readFileSync } from "fs";
 import { join } from "path";
 
 const SAMPLE_JOURNAL = join(process.cwd(), "data", "sample.journal");
@@ -49,6 +49,30 @@ export function appendToUploadedJournal(content: string): void {
     writeFileSync(UPLOADED_JOURNAL, "; Uploaded transactions\n\n", "utf-8");
   }
   appendFileSync(UPLOADED_JOURNAL, content, "utf-8");
+}
+
+export function recategorizeTransactions(
+  mapping: { description: string; newAccount: string }[],
+): { updated: number; unchanged: number } {
+  const uploadedPath = join(process.cwd(), "data", "uploaded.journal");
+  if (!existsSync(uploadedPath)) return { updated: 0, unchanged: 0 };
+
+  let content = readFileSync(uploadedPath, "utf-8");
+  let updated = 0;
+
+  for (const { description, newAccount } of mapping) {
+    const escaped = description.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(
+      `(\\d{4}-\\d{2}-\\d{2}\\s+${escaped}[^\\n]*\\n\\s+)expenses:unknown`,
+      "gi",
+    );
+    const before = content;
+    content = content.replace(regex, `$1${newAccount}`);
+    if (content !== before) updated++;
+  }
+
+  writeFileSync(uploadedPath, content, "utf-8");
+  return { updated, unchanged: mapping.length - updated };
 }
 
 export function hledgerJson(args: string): unknown {
@@ -570,6 +594,136 @@ export function getAnomalies(
 
   const usedPeriod = periodArg || "all time";
   return { anomalies, period: usedPeriod };
+}
+
+// --- Recurring Transaction Detection ---
+
+export interface RecurringTransaction {
+  description: string;
+  account: string;
+  averageAmount: number;
+  frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+  occurrences: number;
+  lastDate: string;
+  nextExpectedDate: string;
+  amounts: number[];
+}
+
+export function getRecurringTransactions(
+  minOccurrences?: number,
+): RecurringTransaction[] {
+  const min = minOccurrences ?? 3;
+
+  const result = hledgerJson("register") as [
+    string,         // date
+    string | null,  // date2
+    string,         // description
+    {
+      paccount: string;
+      pamount: { aquantity: { floatingPoint: number } }[];
+    },
+    unknown[], // running total
+  ][];
+
+  // Group by normalized description, keep original casing
+  const groups = new Map<
+    string,
+    { date: string; description: string; account: string; amount: number }[]
+  >();
+
+  for (const [date, , desc, posting] of result) {
+    const key = desc.toLowerCase().trim();
+    if (!key) continue;
+    const amount =
+      Math.round(
+        (posting.pamount[0]?.aquantity?.floatingPoint ?? 0) * 100,
+      ) / 100;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push({ date, description: desc, account: posting.paccount, amount });
+  }
+
+  const recurring: RecurringTransaction[] = [];
+
+  for (const [, entries] of groups) {
+    if (entries.length < min) continue;
+
+    entries.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Calculate gaps in days between consecutive occurrences
+    const gaps: number[] = [];
+    for (let i = 1; i < entries.length; i++) {
+      const d1 = new Date(entries[i - 1].date).getTime();
+      const d2 = new Date(entries[i].date).getTime();
+      gaps.push(Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+    }
+
+    if (gaps.length === 0) continue;
+
+    // Calculate median gap
+    const sorted = [...gaps].sort((a, b) => a - b);
+    const median =
+      sorted.length % 2 === 0
+        ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+        : sorted[Math.floor(sorted.length / 2)];
+
+    // Classify frequency
+    let frequency: "weekly" | "monthly" | "quarterly" | "yearly" | null = null;
+    if (median >= 5 && median <= 9) frequency = "weekly";
+    else if (median >= 25 && median <= 35) frequency = "monthly";
+    else if (median >= 80 && median <= 100) frequency = "quarterly";
+    else if (median >= 350 && median <= 380) frequency = "yearly";
+
+    if (!frequency) continue;
+
+    // Skip if gap variance is too high (coefficient of variation > 0.5)
+    const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+    const gapStdDev = Math.sqrt(
+      gaps.reduce((s, g) => s + (g - avgGap) ** 2, 0) / gaps.length,
+    );
+    if (avgGap > 0 && gapStdDev / avgGap > 0.5) continue;
+
+    const amounts = entries.map((e) => Math.abs(e.amount));
+    const avgAmount =
+      Math.round(
+        (amounts.reduce((s, a) => s + a, 0) / amounts.length) * 100,
+      ) / 100;
+
+    // Most common account
+    const accountCounts = new Map<string, number>();
+    for (const e of entries) {
+      accountCounts.set(e.account, (accountCounts.get(e.account) ?? 0) + 1);
+    }
+    const account = [...accountCounts.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )[0][0];
+
+    // Predict next date
+    const lastDate = entries[entries.length - 1].date;
+    const nextDate = new Date(lastDate);
+    nextDate.setDate(nextDate.getDate() + Math.round(median));
+    const nextExpectedDate = nextDate.toISOString().slice(0, 10);
+
+    recurring.push({
+      description: entries[entries.length - 1].description,
+      account,
+      averageAmount: avgAmount,
+      frequency,
+      occurrences: entries.length,
+      lastDate,
+      nextExpectedDate,
+      amounts: amounts.slice(-5),
+    });
+  }
+
+  // Sort: monthly first, then by amount descending
+  const freqOrder = { weekly: 0, monthly: 1, quarterly: 2, yearly: 3 };
+  recurring.sort((a, b) => {
+    const fDiff = freqOrder[a.frequency] - freqOrder[b.frequency];
+    if (fDiff !== 0) return fDiff;
+    return b.averageAmount - a.averageAmount;
+  });
+
+  return recurring;
 }
 
 // --- Budget Comparison ---

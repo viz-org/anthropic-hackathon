@@ -10,6 +10,8 @@ import {
   getAnomalies,
   getDataInfo,
   appendToUploadedJournal,
+  recategorizeTransactions,
+  getRecurringTransactions,
 } from "./hledger.js";
 import {
   previewCsv,
@@ -297,8 +299,8 @@ const server = new McpServer(
         limit: z
           .number()
           .optional()
-          .default(30)
-          .describe("Max number of transactions to return (most recent first)"),
+          .default(100)
+          .describe("Max number of transactions to return (most recent first). Request up to 500 for bulk analysis."),
       },
       annotations: {
         readOnlyHint: true,
@@ -656,6 +658,184 @@ server.registerTool(
           {
             type: "text" as const,
             text: `Error getting data info: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.registerTool(
+  "recategorize",
+  {
+    description:
+      "Re-categorize imported transactions by replacing 'expenses:unknown' with the correct account. Use get-data-info first to get valid category names. Match transaction descriptions (from transaction-search or bulk-transactions) to appropriate categories, then call this with a batch of mappings.",
+    inputSchema: {
+      mapping: z
+        .array(
+          z.object({
+            description: z
+              .string()
+              .describe("Exact transaction description to match"),
+            newAccount: z
+              .string()
+              .describe(
+                'Full account name to replace expenses:unknown with, e.g. "expenses:food:groceries"',
+              ),
+          }),
+        )
+        .describe("Array of description-to-account mappings to apply"),
+    },
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+  },
+  async ({ mapping }) => {
+    try {
+      const result = recategorizeTransactions(mapping);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Recategorized ${result.updated} transactions (${result.unchanged} unchanged). All widgets will now reflect the updated categories.`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Error recategorizing: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.registerTool(
+  "detect-recurring",
+  {
+    description:
+      "Detect recurring transactions (subscriptions, rent, salary, regular transfers) by analyzing transaction history for patterns. Returns structured data with frequency, average amount, and next expected date. Use for subscription tracking, cash flow forecasting, and spending pattern analysis.",
+    inputSchema: {
+      minOccurrences: z
+        .number()
+        .optional()
+        .default(3)
+        .describe(
+          "Minimum number of occurrences to consider a transaction recurring (default 3)",
+        ),
+    },
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+  },
+  async ({ minOccurrences }) => {
+    try {
+      const result = getRecurringTransactions(minOccurrences);
+      const summary = result
+        .slice(0, 5)
+        .map(
+          (r) =>
+            `${r.description} (${r.frequency}, ~£${r.averageAmount})`,
+        )
+        .join("; ");
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Found ${result.length} recurring transactions. Top: ${summary || "none"}.`,
+          },
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Error detecting recurring transactions: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.registerTool(
+  "bulk-transactions",
+  {
+    description:
+      "Get transactions as compact text for bulk analysis, pattern detection, categorization review, or forecasting. Higher default limit than transaction-search. Returns one line per transaction without rendering a widget.",
+    inputSchema: {
+      account: z
+        .string()
+        .optional()
+        .describe(
+          'Account to filter by, e.g. "expenses:food", "expenses:unknown"',
+        ),
+      description: z
+        .string()
+        .optional()
+        .describe("Search term to filter by transaction description"),
+      period: z
+        .string()
+        .optional()
+        .describe(
+          'Time period, e.g. "2026-01", "2025-09..2026-03", "this year"',
+        ),
+      limit: z
+        .number()
+        .optional()
+        .default(500)
+        .describe("Max number of transactions to return (default 500)"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+  },
+  async ({ account, description, period, limit }) => {
+    try {
+      const result = getTransactionSearch(
+        account,
+        description,
+        period,
+        limit,
+      );
+      const lines = result.transactions
+        .map(
+          (t) =>
+            `${t.date}  ${t.amount > 0 ? "+" : ""}${t.amount}  ${t.account}  ${t.description}`,
+        )
+        .join("\n");
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `${result.count} total transactions${result.query ? ` matching: ${result.query}` : ""}. Showing ${result.transactions.length}:\n\n${lines}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Error fetching transactions: ${error instanceof Error ? error.message : String(error)}`,
           },
         ],
         isError: true,
