@@ -1,8 +1,17 @@
 import { execSync } from "child_process";
+import { existsSync, appendFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { existsSync } from "fs";
 
-const JOURNAL_PATH = join(process.cwd(), "data", "sample.journal");
+const SAMPLE_JOURNAL = join(process.cwd(), "data", "sample.journal");
+const UPLOADED_JOURNAL = join(process.cwd(), "data", "uploaded.journal");
+
+function journalFlags(): string {
+  const flags = `-f "${SAMPLE_JOURNAL}"`;
+  if (existsSync(UPLOADED_JOURNAL)) {
+    return `${flags} -f "${UPLOADED_JOURNAL}"`;
+  }
+  return flags;
+}
 
 // Use bundled binary if system hledger is not available
 function getHledgerPath(): string {
@@ -24,7 +33,7 @@ const HLEDGER_BIN = getHledgerPath();
 
 export function hledger(args: string): string {
   try {
-    return execSync(`${HLEDGER_BIN} -f "${JOURNAL_PATH}" ${args}`, {
+    return execSync(`${HLEDGER_BIN} ${journalFlags()} ${args}`, {
       timeout: 30000,
       encoding: "utf-8",
     });
@@ -33,6 +42,13 @@ export function hledger(args: string): string {
       error instanceof Error ? error.message : String(error);
     throw new Error(`hledger command failed: ${message}`);
   }
+}
+
+export function appendToUploadedJournal(content: string): void {
+  if (!existsSync(UPLOADED_JOURNAL)) {
+    writeFileSync(UPLOADED_JOURNAL, "; Uploaded transactions\n\n", "utf-8");
+  }
+  appendFileSync(UPLOADED_JOURNAL, content, "utf-8");
 }
 
 export function hledgerJson(args: string): unknown {
@@ -353,6 +369,207 @@ export function getDataInfo(): DataInfo {
   ];
 
   return { categories, dateRange: { start, end }, suggestedPeriods };
+}
+
+// --- Transaction Search ---
+
+export interface Transaction {
+  date: string;
+  description: string;
+  account: string;
+  amount: number;
+  runningTotal: number;
+}
+
+export interface TransactionSearchResult {
+  transactions: Transaction[];
+  count: number;
+  query: string;
+}
+
+export function getTransactionSearch(
+  account?: string,
+  description?: string,
+  period?: string,
+  limit?: number,
+): TransactionSearchResult {
+  const parts: string[] = ["register"];
+
+  if (account) parts.push(account);
+  if (description) parts.push(`desc:"${description}"`);
+  if (period) parts.push(`-p "${period}"`);
+
+  const queryStr = parts.slice(1).join(" ");
+  const result = hledgerJson(parts.join(" ")) as [
+    string,         // date
+    string | null,  // date2
+    string,         // description
+    {               // posting
+      paccount: string;
+      pamount: { aquantity: { floatingPoint: number } }[];
+    },
+    { aquantity: { floatingPoint: number } }[], // running total
+  ][];
+
+  const maxItems = limit ?? 50;
+  const transactions: Transaction[] = result
+    .slice(-maxItems)
+    .map(([date, , desc, posting, total]) => ({
+      date,
+      description: desc,
+      account: posting.paccount,
+      amount: Math.round((posting.pamount[0]?.aquantity?.floatingPoint ?? 0) * 100) / 100,
+      runningTotal: Math.round((total[0]?.aquantity?.floatingPoint ?? 0) * 100) / 100,
+    }));
+
+  return { transactions, count: result.length, query: queryStr };
+}
+
+// --- Net Worth Timeline ---
+
+export interface NetWorthPoint {
+  date: string;
+  assets: number;
+  liabilities: number;
+  netWorth: number;
+}
+
+export interface NetWorthTimelineResult {
+  points: NetWorthPoint[];
+}
+
+export function getNetWorthTimeline(
+  period?: string,
+): NetWorthTimelineResult {
+  const periodArg = period ? `-p "${period}"` : "";
+
+  // Monthly balance sheet gives cumulative balances per period
+  const result = hledgerJson(`bs -M ${periodArg}`) as {
+    cbrDates: { tag: string; contents: string | number }[][];
+    cbrSubreports: [
+      string,
+      {
+        prRows: {
+          prrName: string;
+          prrAmounts: unknown[][];
+        }[];
+        prTotals: {
+          prrAmounts: unknown[][];
+        };
+      },
+      boolean,
+    ][];
+    cbrTotals: {
+      prrAmounts: unknown[][];
+    };
+  };
+
+  const dates = result.cbrDates.map(
+    (pair) => dateToYearMonth(pair[0].contents),
+  );
+
+  // Subreport 0 = Assets, Subreport 1 = Liabilities
+  const assetsSubreport = result.cbrSubreports[0][1];
+  const liabilitiesSubreport = result.cbrSubreports[1][1];
+
+  const points: NetWorthPoint[] = dates.map((date, i) => {
+    let assets = 0;
+    for (const row of assetsSubreport.prRows) {
+      assets += extractAmount(row.prrAmounts[i] ?? []);
+    }
+    assets = Math.round(assets * 100) / 100;
+
+    let liabilities = 0;
+    for (const row of liabilitiesSubreport.prRows) {
+      liabilities += extractAmount(row.prrAmounts[i] ?? []);
+    }
+    liabilities = Math.abs(Math.round(liabilities * 100) / 100);
+
+    const netWorth = Math.round((assets - liabilities) * 100) / 100;
+    return { date, assets, liabilities, netWorth };
+  });
+
+  return { points };
+}
+
+// --- Anomaly Detection ---
+
+export interface Anomaly {
+  category: string;
+  month: string;
+  amount: number;
+  average: number;
+  deviation: number;
+  severity: "high" | "medium";
+  direction: "above" | "below";
+}
+
+export interface AnomalyDetectionResult {
+  anomalies: Anomaly[];
+  period: string;
+}
+
+export function getAnomalies(
+  period?: string,
+): AnomalyDetectionResult {
+  const periodArg = period ? `-p "${period}"` : "";
+
+  // Monthly expense breakdown
+  const result = hledgerJson(
+    `bal expenses --depth 2 ${periodArg} -M`,
+  ) as {
+    prDates: { tag: string; contents: string | number }[][];
+    prRows: {
+      prrName: string;
+      prrAmounts: unknown[][];
+    }[];
+  };
+
+  const dates = result.prDates.map(
+    (pair) => dateToYearMonth(pair[0].contents),
+  );
+
+  const anomalies: Anomaly[] = [];
+
+  for (const row of result.prRows) {
+    const amounts = row.prrAmounts.map((a) => Math.abs(extractAmount(a)));
+    const nonZero = amounts.filter((a) => a > 0);
+    if (nonZero.length < 3) continue; // need enough data points
+
+    const avg = nonZero.reduce((s, a) => s + a, 0) / nonZero.length;
+    const stdDev = Math.sqrt(
+      nonZero.reduce((s, a) => s + (a - avg) ** 2, 0) / nonZero.length,
+    );
+
+    if (stdDev === 0) continue; // constant spending, no anomalies
+
+    for (let i = 0; i < amounts.length; i++) {
+      const amount = amounts[i];
+      if (amount === 0) continue;
+      const zScore = (amount - avg) / stdDev;
+
+      if (Math.abs(zScore) >= 1.5) {
+        anomalies.push({
+          category: row.prrName.replace(/^expenses:/, ""),
+          month: dates[i],
+          amount,
+          average: Math.round(avg * 100) / 100,
+          deviation: Math.round(zScore * 100) / 100,
+          severity: Math.abs(zScore) >= 2 ? "high" : "medium",
+          direction: zScore > 0 ? "above" : "below",
+        });
+      }
+    }
+  }
+
+  // Sort by severity (high first), then by deviation magnitude
+  anomalies.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === "high" ? -1 : 1;
+    return Math.abs(b.deviation) - Math.abs(a.deviation);
+  });
+
+  const usedPeriod = periodArg || "all time";
+  return { anomalies, period: usedPeriod };
 }
 
 // --- Budget Comparison ---

@@ -181,3 +181,299 @@ body {
   color: var(--color-text-muted);
   text-align: right;
 }
+
+/* -- Transaction table -- */
+
+.txn-table-wrap {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.txn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.txn-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  padding: 0.4rem 0.5rem;
+  border-bottom: 2px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  background: var(--color-bg);
+}
+
+.txn-table td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.txn-table tbody tr:hover {
+  background: var(--color-bg-card);
+}
+
+.txn-date {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.txn-desc {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.txn-account {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.txn-amount-col {
+  text-align: right !important;
+}
+
+.txn-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.txn-amount.positive {
+  color: var(--color-income);
+}
+
+/* -- Anomaly detection -- */
+
+.anomaly-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  color: var(--color-income);
+  font-size: 0.875rem;
+}
+
+.anomaly-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.anomaly-card {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--color-bg-card);
+}
+
+.anomaly-high {
+  border-left: 3px solid var(--color-expenses);
+}
+
+.anomaly-medium {
+  border-left: 3px solid #f59e0b;
+}
+
+.anomaly-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.anomaly-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+.anomaly-badge-high {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-expenses);
+}
+
+.anomaly-badge-medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.anomaly-category {
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.anomaly-month {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+.anomaly-body {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.anomaly-amount {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.anomaly-comparison {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.anomaly-bar-track {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+.anomaly-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.anomaly-bar-above {
+  background: var(--color-expenses);
+}
+
+.anomaly-bar-below {
+  background: #f59e0b;
+}
+
+.anomaly-bar-avg {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 8px;
+  background: var(--color-text-muted);
+  transform: translateX(-50%);
+}
+
+/* -- CSV Upload -- */
+
+.csv-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.csv-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.csv-stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.csv-stat-label {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.csv-expense {
+  color: var(--color-expenses);
+}
+
+.csv-income {
+  color: var(--color-income);
+}
+
+.csv-import-btn {
+  display: block;
+  width: 100%;
+  padding: 0.6rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--color-net);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.csv-import-btn:hover {
+  opacity: 0.9;
+}
+
+.csv-import-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.csv-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.csv-success-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--color-income);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.csv-success-text {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.csv-success-sub {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.csv-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  color: var(--color-expenses);
+  font-size: 0.875rem;
+}
+
+.csv-confirm-hint {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}

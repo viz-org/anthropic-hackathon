@@ -1,99 +1,91 @@
-# Skybridge Starter
+# hledger Financial Insights — MCP App
 
-A minimal TypeScript template for building MCP and ChatGPT Apps with the [Skybridge](https://docs.skybridge.tech/home) framework.
+An AI-powered financial dashboard built as an MCP App using [Skybridge](https://docs.skybridge.tech/home). Ask Claude about your finances in natural language and get interactive charts, tables, and anomaly alerts rendered directly in chat.
+
+Built with [hledger](https://hledger.org/) (plain-text accounting) on the backend and Chart.js widgets on the frontend.
+
+## What It Does
+
+Ask Claude things like:
+- "Where is my money going?" — stacked bar chart by category and month
+- "How are my finances trending?" — income vs expenses over time
+- "Give me a financial overview" — dashboard with net worth, savings rate, cashflow
+- "Am I on budget?" — actual vs budget comparison
+- "Show my recent restaurant purchases" — searchable transaction table
+- "How has my net worth changed?" — assets, liabilities, and net worth over time
+- "Flag anything unusual" — anomaly detection with severity ratings
+- Upload a CSV bank statement — visual preview, dedup, and import
+
+## Widgets
+
+| Widget | Description |
+|--------|-------------|
+| **spending-breakdown** | Monthly stacked bar chart of expense categories |
+| **financial-trends** | Multi-line chart: income, expenses, net savings |
+| **financial-summary** | Key metrics: net worth, income, expenses, savings rate |
+| **budget-comparison** | Grouped bar chart: actual vs budget per category |
+| **transaction-search** | Filterable transaction table with dates, accounts, amounts |
+| **net-worth-timeline** | Line chart: net worth, assets, liabilities over time |
+| **anomaly-detection** | Alert cards for unusual spending with severity badges |
+| **csv-upload** | CSV import preview with stats, table, and confirmation flow |
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| **get-data-info** | Discover available categories, date ranges, and suggested periods |
+| **preview-csv** | Parse and preview a CSV bank statement (text-only, no widget) |
+| **import-csv** | Import a confirmed CSV into the journal |
+
+## Architecture
+
+```
+server/src/
+├── index.ts           # Widget & tool registrations (MCP App entry point)
+├── hledger.ts         # hledger CLI wrapper — shells out with -O json
+└── csv-processor.ts   # CSV parsing, column detection, dedup, journal conversion
+
+web/src/
+├── widgets/           # One React component per widget (Chart.js + react-chartjs-2)
+├── helpers.ts         # Typed Skybridge helpers (useToolInfo, useCallTool)
+└── index.css          # Shared styles (light/dark mode)
+
+data/
+├── sample.journal     # Demo financial data
+└── uploaded.journal   # User-imported CSV data (gitignored)
+```
+
+The server shells out to `hledger` CLI with `-O json` for structured data. Both `sample.journal` and `uploaded.journal` are merged automatically so imported CSV data appears in all widgets immediately.
+
+## Prerequisites
+
+- Node.js 24+
+- [hledger](https://hledger.org/install.html) installed and on PATH
+- HTTP tunnel (e.g. [ngrok](https://ngrok.com/download)) for testing with Claude.ai or ChatGPT
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 24+
-- HTTP tunnel such as [ngrok](https://ngrok.com/download) if you want to test with remote MCP hosts like ChatGPT or Claude.ai.
-
-### Local Development
-
-#### 1. Install
-
 ```bash
-npm install
-# or
-yarn install
-# or
 pnpm install
-# or
-bun install
+pnpm dev
 ```
 
-#### 2. Start your local server
+This starts:
+- MCP server at `http://localhost:3000/mcp`
+- Skybridge DevTools at `http://localhost:3000/`
 
-Run the development server from the root directory:
+## Deploy
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm build
+pnpm deploy   # deploys to Alpic
 ```
 
-This command starts:
-- Your MCP server at `http://localhost:3000/mcp`.
-- Skybridge DevTools UI at `http://localhost:3000/`.
-
-#### 3. Project structure
-
-```
-├── server/
-│   └── src/
-│       ├── index.ts      # Entry point
-│       ├── middleware.ts # MCP middleware
-│       └── server.ts     # Widget registry & routes
-├── web/
-│   ├── src/
-│   │   ├── widgets/      # React components (one per widget)
-│   │   ├── helpers.ts    # Shared utilities
-│   │   └── index.css     # Global styles
-│   └── vite.config.ts
-├── alpic.json            # Deployment config
-├── nodemon.json          # Dev server config
-└── package.json
-```
-
-### Create your first widget
-
-#### 1. Add a new widget
-
-- Register a widget in `server/src/server.ts` with a unique name (e.g., `my-widget`) using [`registerWidget`](https://docs.skybridge.tech/api-reference/register-widget)
-- Create a matching React component at `web/src/widgets/my-widget.tsx`. **The file name must match the widget name exactly**.
-
-#### 2. Edit widgets with Hot Module Replacement (HMR)
-
-Edit and save components in `web/src/widgets/` — changes will appear instantly inside your App.
-
-#### 3. Edit server code
-
-Modify files in `server/` and refresh the connection with your testing MCP Client to see the changes.
-
-### Testing your App
-
-You can test your App locally by using our DevTools UI on `localhost:3000` while running the `pnpm dev` command.
-
-To test your app with other MCP Clients like ChatGPT, Claude or VSCode, see [Testing Your App](https://docs.skybridge.tech/quickstart/test-your-app).
-
-
-## Deploy to Production
-
-Skybridge is infrastructure vendor agnostic, and your app can be deployed on any cloud platform supporting MCP.
-
-The simplest way to deploy your App in minutes is [Alpic](https://alpic.ai/).
-1. Create an account on [Alpic platform](https://app.alpic.ai/). 
-2. Connect your GitHub repository to automatically deploy at each commit. 
-3. Use your remote App URL to connect it to MCP Clients, or use the Alpic Playground to easily test your App.
+Or deploy to any cloud platform supporting MCP. See [Skybridge docs](https://docs.skybridge.tech/) for details.
 
 ## Resources
+
 - [Skybridge Documentation](https://docs.skybridge.tech/)
-- [Apps SDK Documentation](https://developers.openai.com/apps-sdk)
-- [MCP Apps Documentation](https://github.com/modelcontextprotocol/ext-apps/tree/main)
-- [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
-- [Alpic Documentation](https://docs.alpic.ai/)
+- [hledger Documentation](https://hledger.org/)
+- [MCP Apps Spec](https://github.com/modelcontextprotocol/ext-apps/tree/main)
+- [Alpic Deployment](https://docs.alpic.ai/)

@@ -1,5 +1,7 @@
 node_modules/
+.idea
 dist/
 .env*
 .DS_store
 *.tsbuildinfo
+data/uploaded.journal
