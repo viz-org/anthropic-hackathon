@@ -3,7 +3,7 @@ import { existsSync, appendFileSync, writeFileSync, readFileSync } from "fs";
 import { join } from "path";
 
 const SAMPLE_JOURNAL = join(process.cwd(), "data", "sample.journal");
-const UPLOADED_JOURNAL = join(process.cwd(), "data", "uploaded.journal");
+const UPLOADED_JOURNAL = join("/tmp", "uploaded.journal");
 
 function journalFlags(): string {
   const flags = `-f "${SAMPLE_JOURNAL}"`;
@@ -54,10 +54,9 @@ export function appendToUploadedJournal(content: string): void {
 export function recategorizeTransactions(
   mapping: { description: string; newAccount: string }[],
 ): { updated: number; unchanged: number } {
-  const uploadedPath = join(process.cwd(), "data", "uploaded.journal");
-  if (!existsSync(uploadedPath)) return { updated: 0, unchanged: 0 };
+  if (!existsSync(UPLOADED_JOURNAL)) return { updated: 0, unchanged: 0 };
 
-  let content = readFileSync(uploadedPath, "utf-8");
+  let content = readFileSync(UPLOADED_JOURNAL, "utf-8");
   let updated = 0;
 
   for (const { description, newAccount } of mapping) {
@@ -71,7 +70,7 @@ export function recategorizeTransactions(
     if (content !== before) updated++;
   }
 
-  writeFileSync(uploadedPath, content, "utf-8");
+  writeFileSync(UPLOADED_JOURNAL, content, "utf-8");
   return { updated, unchanged: mapping.length - updated };
 }
 
