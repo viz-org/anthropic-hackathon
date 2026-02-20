@@ -11,13 +11,15 @@ import {
   Legend,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
-import { mountWidget } from "skybridge/web";
+import { mountWidget, useDisplayMode } from "skybridge/web";
 import { useToolInfo } from "../helpers.js";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
 function NetWorthTimeline() {
   const { output, isPending } = useToolInfo<"net-worth-timeline">();
+  const [displayMode, setDisplayMode] = useDisplayMode();
+  const isFullscreen = displayMode === "fullscreen";
 
   if (isPending || !output) {
     return (
@@ -106,21 +108,52 @@ function NetWorthTimeline() {
 
   return (
     <div
-      className="container"
+      className={`container ${isFullscreen ? "fullscreen" : ""}`}
       data-llm={`Net worth timeline: ${points.length} months. Latest: £${latest?.netWorth.toLocaleString() ?? "N/A"}. Change: £${change.toLocaleString()}.`}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.5rem" }}>
+      <div className="widget-header">
         <span className="section-title">Net Worth Over Time</span>
-        <span className="period-label">
-          £{latest?.netWorth.toLocaleString() ?? "—"}{" "}
-          <span style={{ color: change >= 0 ? "var(--color-income)" : "var(--color-expenses)" }}>
-            ({change >= 0 ? "+" : ""}£{change.toLocaleString()})
+        <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+          <span className="period-label">
+            £{latest?.netWorth.toLocaleString() ?? "—"}{" "}
+            <span style={{ color: change >= 0 ? "var(--color-income)" : "var(--color-expenses)" }}>
+              ({change >= 0 ? "+" : ""}£{change.toLocaleString()})
+            </span>
           </span>
-        </span>
+          <button
+            className="expand-btn"
+            onClick={() => setDisplayMode(isFullscreen ? "inline" : "fullscreen")}
+          >
+            {isFullscreen ? "Close" : "Expand"}
+          </button>
+        </div>
       </div>
-      <div className="chart-container" style={{ minHeight: 250 }}>
+      <div className="chart-container" style={{ minHeight: isFullscreen ? 400 : 250 }}>
         <Line data={data} options={options} />
       </div>
+
+      {isFullscreen && (
+        <table className="detail-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th className="num">Net Worth</th>
+              <th className="num">Assets</th>
+              <th className="num">Liabilities</th>
+            </tr>
+          </thead>
+          <tbody>
+            {points.map((p) => (
+              <tr key={p.date}>
+                <td>{p.date}</td>
+                <td className="num" style={{ fontWeight: 600 }}>£{p.netWorth.toLocaleString()}</td>
+                <td className="num" style={{ color: "var(--color-income)" }}>£{p.assets.toLocaleString()}</td>
+                <td className="num" style={{ color: "var(--color-expenses)" }}>£{p.liabilities.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

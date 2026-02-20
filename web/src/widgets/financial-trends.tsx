@@ -11,7 +11,7 @@ import {
   Filler,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
-import { mountWidget } from "skybridge/web";
+import { mountWidget, useDisplayMode } from "skybridge/web";
 import { useToolInfo } from "../helpers.js";
 
 ChartJS.register(
@@ -26,6 +26,8 @@ ChartJS.register(
 
 function FinancialTrends() {
   const { output, isPending } = useToolInfo<"financial-trends">();
+  const [displayMode, setDisplayMode] = useDisplayMode();
+  const isFullscreen = displayMode === "fullscreen";
 
   if (isPending || !output) {
     return (
@@ -120,20 +122,53 @@ function FinancialTrends() {
 
   return (
     <div
-      className="container"
+      className={`container ${isFullscreen ? "fullscreen" : ""}`}
       data-llm={`Financial trends: ${periods.map((p) => `${p.date}: income £${p.income.toLocaleString()}, expenses £${p.expenses.toLocaleString()}, net £${p.net.toLocaleString()}`).join("; ")}`}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+      <div className="widget-header">
         <span className="section-title">Financial Trends</span>
-        {latestPeriod && (
-          <span className="period-label">
-            Latest: £{latestPeriod.net.toLocaleString()} net
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+          {latestPeriod && (
+            <span className="period-label">
+              Latest: £{latestPeriod.net.toLocaleString()} net
+            </span>
+          )}
+          <button
+            className="expand-btn"
+            onClick={() => setDisplayMode(isFullscreen ? "inline" : "fullscreen")}
+          >
+            {isFullscreen ? "Close" : "Expand"}
+          </button>
+        </div>
       </div>
-      <div className="chart-container" style={{ minHeight: 200 }}>
+      <div className="chart-container" style={{ minHeight: isFullscreen ? 400 : 200 }}>
         <Line data={data} options={options} />
       </div>
+
+      {isFullscreen && (
+        <table className="detail-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th className="num">Income</th>
+              <th className="num">Expenses</th>
+              <th className="num">Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            {periods.map((p) => (
+              <tr key={p.date}>
+                <td>{p.date}</td>
+                <td className="num" style={{ color: "var(--color-income)" }}>£{p.income.toLocaleString()}</td>
+                <td className="num" style={{ color: "var(--color-expenses)" }}>£{p.expenses.toLocaleString()}</td>
+                <td className="num" style={{ fontWeight: 600, color: p.net >= 0 ? "var(--color-income)" : "var(--color-expenses)" }}>
+                  {p.net >= 0 ? "" : "-"}£{Math.abs(p.net).toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

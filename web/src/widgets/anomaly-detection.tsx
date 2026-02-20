@@ -1,10 +1,12 @@
 import "@/index.css";
 
-import { mountWidget } from "skybridge/web";
+import { mountWidget, useDisplayMode } from "skybridge/web";
 import { useToolInfo } from "../helpers.js";
 
 function AnomalyDetection() {
   const { output, isPending } = useToolInfo<"anomaly-detection">();
+  const [displayMode, setDisplayMode] = useDisplayMode();
+  const isFullscreen = displayMode === "fullscreen";
 
   if (isPending || !output) {
     return (
@@ -35,14 +37,22 @@ function AnomalyDetection() {
 
   return (
     <div
-      className="container"
+      className={`container ${isFullscreen ? "fullscreen" : ""}`}
       data-llm={`Anomaly detection: ${anomalies.length} anomalies found (${highCount} high, ${medCount} medium). ${anomalies.slice(0, 3).map((a) => `${a.category} ${a.month}: £${a.amount} vs avg £${a.average}`).join("; ")}`}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.5rem" }}>
+      <div className="widget-header">
         <span className="section-title">Anomaly Detection</span>
-        <span className="period-label">
-          {anomalies.length} anomalies · {highCount} high · {medCount} medium
-        </span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+          <span className="period-label">
+            {anomalies.length} anomalies · {highCount} high · {medCount} medium
+          </span>
+          <button
+            className="expand-btn"
+            onClick={() => setDisplayMode(isFullscreen ? "inline" : "fullscreen")}
+          >
+            {isFullscreen ? "Close" : "Expand"}
+          </button>
+        </div>
       </div>
       <div className="anomaly-list">
         {anomalies.map((a, i) => (
@@ -64,14 +74,14 @@ function AnomalyDetection() {
                 {a.direction} avg of £{a.average.toLocaleString()}
               </span>
             </div>
-            <div className="anomaly-bar-track">
+            <div className="anomaly-bar-track" style={{ height: isFullscreen ? 8 : 4 }}>
               <div
                 className={`anomaly-bar-fill anomaly-bar-${a.direction}`}
                 style={{ width: `${Math.min(Math.abs(a.amount / a.average) * 50, 100)}%` }}
               />
               <div
                 className="anomaly-bar-avg"
-                style={{ left: "50%" }}
+                style={{ left: "50%", height: isFullscreen ? 14 : 8, top: isFullscreen ? -3 : -2 }}
               />
             </div>
           </div>

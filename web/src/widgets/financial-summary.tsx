@@ -1,6 +1,6 @@
 import "@/index.css";
 
-import { mountWidget } from "skybridge/web";
+import { mountWidget, useDisplayMode } from "skybridge/web";
 import { useToolInfo } from "../helpers.js";
 
 function formatCurrency(value: number): string {
@@ -29,6 +29,8 @@ function MetricCard({ label, value, colorClass }: MetricProps) {
 
 function FinancialSummary() {
   const { output, isPending } = useToolInfo<"financial-summary">();
+  const [displayMode, setDisplayMode] = useDisplayMode();
+  const isFullscreen = displayMode === "fullscreen";
 
   if (isPending || !output) {
     return (
@@ -50,12 +52,22 @@ function FinancialSummary() {
     topExpenses,
   } = output;
 
+  const expensesToShow = isFullscreen ? topExpenses : topExpenses.slice(0, 5);
+
   return (
     <div
-      className="container"
+      className={`container ${isFullscreen ? "fullscreen" : ""}`}
       data-llm={`Financial summary: net worth ${formatCurrency(netWorth)}, income ${formatCurrency(totalIncome)}, expenses ${formatCurrency(totalExpenses)}, savings rate ${savingsRate}%, cashflow ${formatCurrency(cashflow)}. Top expenses: ${topExpenses.map((e) => `${e.name} ${formatCurrency(e.amount)}`).join(", ")}`}
     >
-      <span className="section-title">Financial Overview</span>
+      <div className="widget-header">
+        <span className="section-title">Financial Overview</span>
+        <button
+          className="expand-btn"
+          onClick={() => setDisplayMode(isFullscreen ? "inline" : "fullscreen")}
+        >
+          {isFullscreen ? "Close" : "Expand"}
+        </button>
+      </div>
 
       <div className="metrics-grid">
         <MetricCard
@@ -85,9 +97,11 @@ function FinancialSummary() {
         />
       </div>
 
-      <span className="section-title">Top Expenses</span>
+      <span className="section-title">
+        {isFullscreen ? "All Expenses" : "Top Expenses"}
+      </span>
       <ul className="expenses-list">
-        {topExpenses.map((expense) => (
+        {expensesToShow.map((expense) => (
           <li key={expense.name} className="expense-item">
             <span className="expense-name">{expense.name}</span>
             <span className="expense-amount">{formatCurrency(expense.amount)}</span>

@@ -9,7 +9,7 @@ import {
   Legend,
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
-import { mountWidget } from "skybridge/web";
+import { mountWidget, useDisplayMode } from "skybridge/web";
 import { useToolInfo } from "../helpers.js";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
@@ -21,6 +21,8 @@ const COLORS = [
 
 function SpendingBreakdown() {
   const { output, isPending } = useToolInfo<"spending-breakdown">();
+  const [displayMode, setDisplayMode] = useDisplayMode();
+  const isFullscreen = displayMode === "fullscreen";
 
   if (isPending || !output) {
     return (
@@ -97,16 +99,56 @@ function SpendingBreakdown() {
 
   return (
     <div
-      className="container"
+      className={`container ${isFullscreen ? "fullscreen" : ""}`}
       data-llm={`Monthly spending breakdown for ${period}: grand total £${grandTotal.toLocaleString()} across ${months.length} months. Top categories: ${summaryText}`}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.5rem" }}>
+      <div className="widget-header">
         <span className="section-title">Spending Breakdown</span>
-        <span className="period-label">{period} — £{grandTotal.toLocaleString()} total</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+          <span className="period-label">{period} — £{grandTotal.toLocaleString()} total</span>
+          <button
+            className="expand-btn"
+            onClick={() => setDisplayMode(isFullscreen ? "inline" : "fullscreen")}
+          >
+            {isFullscreen ? "Close" : "Expand"}
+          </button>
+        </div>
       </div>
-      <div className="chart-container" style={{ minHeight: 250 }}>
+      <div className="chart-container" style={{ minHeight: isFullscreen ? 400 : 250 }}>
         <Bar data={data} options={options} />
       </div>
+
+      {isFullscreen && (
+        <table className="detail-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              {months.map((m) => (
+                <th key={m.date} className="num">{m.date}</th>
+              ))}
+              <th className="num">Total</th>
+              <th className="num">%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {categoryTotals.map((cat) => (
+              <tr key={cat.name}>
+                <td style={{ textTransform: "capitalize" }}>{cat.name}</td>
+                {months.map((m) => {
+                  const found = m.categories.find((c) => c.name === cat.name);
+                  return (
+                    <td key={m.date} className="num">
+                      {found ? `£${found.amount.toLocaleString()}` : "—"}
+                    </td>
+                  );
+                })}
+                <td className="num" style={{ fontWeight: 600 }}>£{cat.amount.toLocaleString()}</td>
+                <td className="num">{cat.percentage}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
